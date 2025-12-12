@@ -5,6 +5,7 @@ import AppointmentModal from './components/AppointmentModal';
 import GeminiQuery from './components/GeminiQuery';
 import CalendarView from './components/CalendarView';
 import ListView from './components/ListView';
+import UserManual from './components/UserManual';
 
 const getTodayStr = () => {
     const date = new Date();
@@ -27,12 +28,11 @@ const App: React.FC = () => {
   const [backupNeeded, setBackupNeeded] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Manual State
+  const [showManual, setShowManual] = useState(false);
+
   useEffect(() => {
     // SEEDING LOGIC: "1 Single Time"
-    // We simply ask the service to generate data. 
-    // The service internally checks 'INITIALIZED_KEY'. 
-    // If it was already run once, it returns the current (potentially empty) data.
-    // If it's the first run, it generates 10 items.
     const data = scheduleService.generateTestData();
     setAppointments(data);
     checkBackupStatus();
@@ -159,7 +159,18 @@ const App: React.FC = () => {
 
         {/* Top Controls */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
-             <h1 className="text-xl font-bold text-slate-200">Mi Agenda</h1>
+             <div className="flex items-center gap-3">
+                <h1 className="text-xl font-bold text-slate-200">Mi Agenda</h1>
+                <button 
+                  onClick={() => setShowManual(true)}
+                  className="bg-indigo-600 hover:bg-indigo-500 text-white p-1.5 rounded-full shadow-sm transition-all"
+                  title="Ver Manual de Usuario"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
+                  </svg>
+                </button>
+             </div>
              
              <div className="flex items-center gap-2 self-end sm:self-auto flex-wrap">
                  {/* RESTORE BUTTON */}
@@ -268,6 +279,11 @@ const App: React.FC = () => {
         initialDate={selectedDate}
         editingAppointment={editingAppt}
       />
+      
+      {/* Manual Modal */}
+      {showManual && (
+        <UserManual onClose={() => setShowManual(false)} />
+      )}
     </div>
   );
 };
