@@ -1,12 +1,11 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ViewMode, Appointment } from './types';
 import * as scheduleService from './services/scheduleService';
-
 import AppointmentModal from './components/AppointmentModal';
+import GeminiQuery from './components/GeminiQuery';
 import CalendarView from './components/CalendarView';
 import ListView from './components/ListView';
 import UserManual from './components/UserManual';
-import GeminiQuery from './components/GeminiQuery';
 
 const getTodayStr = () => {
   const date = new Date();
@@ -17,72 +16,64 @@ const getTodayStr = () => {
 };
 
 const App: React.FC = () => {
-  // ✅ Default: Agenda Diaria (LIST) — NO calendario
   const [viewMode, setViewMode] = useState<ViewMode>(ViewMode.LIST);
-
   const [selectedDate, setSelectedDate] = useState(getTodayStr());
   const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [filteredAppointments, setFilteredAppointments] = useState<Appointment[]>([]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingAppt, setEditingAppt] = useState<Appointment | null>(null);
 
-  // ✅ Edit: single / series
+  // 👇 NUEVO: modo de edición (este turno / serie)
   const [editMode, setEditMode] = useState<'single' | 'series'>('single');
 
-  // ✅ Manual no abre solo
+  // Backup State
+  const [backupNeeded, setBackupNeeded] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Manual State (IMPORTANTE: arranca en false, NO debe abrir solo)
   const [showManual, setShowManual] = useState(false);
 
-  // ✅ Backup banner
-  const [backupNeeded, setBackupNeeded] = useState(false);
+  useEffect(() => {
+    // Seeding (datos de prueba si corresponde)
+    const data = scheduleService.generateTestData();
+    setAppointments(data);
+    checkBackupStatus();
+  }, []);
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    filterByDate(selectedDate);
+  }, [appointments, selectedDate]);
 
   const loadData = () => {
     const data = scheduleService.getAppointments();
     setAppointments(data);
   };
 
-  const refreshBackupFlag = () => {
-    try {
-      setBackupNeeded(scheduleService.isBackupNeeded());
-    } catch {
-      setBackupNeeded(false);
-    }
+  const checkBackupStatus = () => {
+    setBackupNeeded(scheduleService.isBackupNeeded());
   };
 
-  useEffect(() => {
-    // Mantiene tu lógica: si ya estaba inicializado, no regenera
-    try {
-      const init = scheduleService.generateTestData();
-      setAppointments(init);
-    } catch {
-      loadData();
-    }
-    refreshBackupFlag();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // ========= Actions =========
-  const handleNew = () => {
-    setEditingAppt(null);
-    setEditMode('single');
-    setIsModalOpen(true);
-  };
-
-  const handleEdit = (appt: Appointment, mode: 'single' | 'series' = 'single') => {
-    setEditingAppt(appt);
-    setEditMode(mode);
-    setIsModalOpen(true);
+  const filterByDate = (date: string) => {
+    const filtered = appointments
+      .filter((a) => a.FECHA_INICIO === date)
+      .sort((a, b) => a.HORA_INICIO.localeCompare(b.HORA_INICIO));
+    setFilteredAppointments(filtered);
   };
 
   const handleSaveAppointment = (appt: Appointment) => {
+    const ss: any = scheduleService; // <- para no romper build si falta alguna función
+
     if (editingAppt) {
-      if (editMode === 'series' && editingAppt.PARENT_ID) {
-        // ✅ Editar este y todos los siguientes
-        scheduleService.updateRecurringSeries(
+      // Si elegiste "serie", actualiza "ese y siguientes" (si existe la función)
+      if (
+        editMode === 'series' &&
+        editingAppt.PARENT_ID &&
+        typeof ss.updateRecurringSeries === 'function'
+      ) {
+        ss.updateRecurringSeries(
           editingAppt.PARENT_ID,
-          editingAppt.FECHA_INICIO,
-          editingAppt.HORA_INICIO,
+          editingAppt.FECHA_INICIO, // desde esta fecha inclusive
           {
             PACIENTE: appt.PACIENTE,
             TELEFONO: appt.TELEFONO,
@@ -92,17 +83,19 @@ const App: React.FC = () => {
           }
         );
       } else {
-        // ✅ Editar solo este
+        // Edición normal (solo este)
         scheduleService.updateAppointment({ ...editingAppt, ...appt });
       }
     } else {
+      // Nuevo turno
       scheduleService.saveAppointment(appt);
     }
 
-    setIsModalOpen(false);
+    // reset
     setEditMode('single');
+    setEditingAppt(null);
     loadData();
-    refreshBackupFlag();
+    checkBackupStatus();
   };
 
   const handleDelete = (id: string, deleteSeries: boolean, parentId?: string) => {
@@ -112,184 +105,179 @@ const App: React.FC = () => {
       scheduleService.deleteAppointment(id);
     }
     loadData();
-    refreshBackupFlag();
+    checkBackupStatus();
   };
 
-  const handleBackup = () => {
+  // 👇 IMPORTANTE: ahora handleEdit recibe mode
+  const handleEdit = (appt: Appointment, mode: 'single' | 'series' = 'single') => {
+    setEditingAppt(appt);
+    setEditMode(mode);
+    setIsModalOpen(true);
+  };
+
+  const openNewModal = () => {
+    setEditingAppt(null);
+    setEditMode('single');
+    setIsModalOpen(true);
+  };
+
+  const handleExportJSON = () => {
     scheduleService.exportToJSON();
-    refreshBackupFlag();
+    setBackupNeeded(false);
   };
 
-  const handleExportExcel = () => {
+  const handleExportCSV = () => {
     scheduleService.exportToCSV();
-    refreshBackupFlag();
   };
 
-  const handleRestoreClick = () => {
+  const handleImportClick = () => {
     fileInputRef.current?.click();
   };
 
-  const handleFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const ok = window.confirm(
-      'ATENCIÓN: Al restaurar un respaldo, se reemplazarán tus datos actuales por los del archivo. ¿Deseás continuar?'
+    const confirmed = window.confirm(
+      'ATENCIÓN: Al importar un respaldo, se reemplazarán todos los datos actuales por los del archivo. ¿Deseas continuar?'
     );
 
-    if (ok) {
+    if (confirmed) {
       try {
         await scheduleService.importFromJSON(file);
-        loadData();
-        refreshBackupFlag();
         alert('Respaldo restaurado con éxito.');
-      } catch {
-        alert('Error al restaurar. Asegurate de usar un JSON exportado por PsiAgenda.');
+        loadData();
+        setBackupNeeded(false);
+      } catch (error) {
+        alert('Error al leer el archivo. Asegúrate de que sea un JSON válido generado por esta app.');
       }
     }
 
     e.target.value = '';
   };
 
-  // ========= Derived =========
-  const filteredAppointments = scheduleService.getAppointmentsByDate(selectedDate);
-
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-200">
+    <div className="min-h-screen bg-slate-900 flex flex-col font-sans text-slate-200">
       {/* IA arriba */}
       <GeminiQuery appointments={appointments} />
 
-      {/* input restore oculto */}
+      {/* Hidden File Input for Restore */}
       <input
         type="file"
         ref={fileInputRef}
-        accept=".json,application/json"
+        onChange={handleFileChange}
+        accept=".json"
         className="hidden"
-        onChange={handleFileSelected}
       />
 
-      <div className="max-w-5xl mx-auto px-4 pb-28">
-        {/* Banner backup */}
+      <main className="flex-1 p-4 max-w-3xl mx-auto w-full">
+        {/* Backup Warning Banner */}
         {backupNeeded && (
-          <div className="mt-4 bg-amber-950/30 border border-amber-500/30 text-amber-200 rounded-xl p-4 flex items-center justify-between gap-3">
+          <div className="bg-amber-900/40 border border-amber-600/50 p-4 rounded-xl mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center">
-                <span className="text-amber-300 text-lg">⚠️</span>
+              <div className="p-2 bg-amber-600/20 rounded-lg text-amber-500">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={2}
+                  stroke="currentColor"
+                  className="w-6 h-6"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
+                  />
+                </svg>
               </div>
               <div>
-                <div className="font-bold">Copia de Seguridad Necesaria</div>
-                <div className="text-sm text-amber-200/80">Hace más de 7 días que no guardas tus datos.</div>
+                <p className="font-bold text-amber-200">Copia de Seguridad Necesaria</p>
+                <p className="text-amber-300/80 text-sm">
+                  Hace más de 7 días que no guardas tus datos.
+                </p>
               </div>
             </div>
             <button
-              onClick={handleBackup}
-              className="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold"
+              onClick={handleExportJSON}
+              className="bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold px-4 py-2 rounded-lg transition-colors shadow-md"
             >
               Respaldar Ahora
             </button>
           </div>
         )}
 
-        {/* Header acciones */}
-        <div className="mt-6 flex items-center justify-between gap-3">
-          <h1 className="text-2xl font-extrabold tracking-tight">Mi Agenda</h1>
+        {/* Header */}
+        <div className="flex items-center justify-between mb-4">
+          <h1 className="text-2xl font-bold tracking-tight text-white">PsiAgenda</h1>
 
           <div className="flex items-center gap-2">
             <button
-              onClick={handleRestoreClick}
-              className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-sm font-semibold"
+              onClick={() => setViewMode(ViewMode.CALENDAR)}
+              className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
+                viewMode === ViewMode.CALENDAR
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+              }`}
             >
-              Restaurar
+              Calendario
             </button>
             <button
-              onClick={handleExportExcel}
-              className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-sm font-semibold"
+              onClick={() => setViewMode(ViewMode.LIST)}
+              className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
+                viewMode === ViewMode.LIST
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+              }`}
             >
-              Excel
+              Lista
             </button>
+
             <button
-              onClick={handleBackup}
-              className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-slate-900 text-sm font-extrabold"
+              onClick={openNewModal}
+              className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-emerald-600 hover:bg-emerald-500 text-white transition-colors"
             >
-              Respaldar
+              + Turno
             </button>
           </div>
         </div>
 
-        {/* Tabs */}
-        <div className="mt-4 bg-slate-800/60 border border-slate-700 rounded-2xl p-2 flex gap-2">
-          <button
-            onClick={() => setViewMode(ViewMode.LIST)}
-            className={`flex-1 py-3 rounded-xl font-bold text-sm transition ${
-              viewMode === ViewMode.LIST
-                ? 'bg-indigo-600 text-white'
-                : 'bg-transparent text-slate-300 hover:bg-slate-700/50'
-            }`}
-          >
-            📅 Agenda Diaria
-          </button>
+        {/* Views */}
+        {viewMode === ViewMode.LIST ? (
+          <ListView
+            selectedDate={selectedDate}
+            onDateChange={setSelectedDate}
+            filteredAppointments={filteredAppointments}
+            onEdit={handleEdit}
+            onDelete={handleDelete}
+          />
+        ) : (
+          <CalendarView
+            appointments={appointments}
+            selectedDate={selectedDate}
+            onDateSelect={setSelectedDate}
+            onViewChange={setViewMode}
+          />
+        )}
 
-          <button
-            onClick={() => setViewMode(ViewMode.CALENDAR)}
-            className={`flex-1 py-3 rounded-xl font-bold text-sm transition ${
-              viewMode === ViewMode.CALENDAR
-                ? 'bg-indigo-600 text-white'
-                : 'bg-transparent text-slate-300 hover:bg-slate-700/50'
-            }`}
-          >
-            🗓️ Calendario Mensual
-          </button>
-        </div>
-
-        {/* Contenido */}
-        <div className="mt-4">
-          {viewMode === ViewMode.CALENDAR ? (
-            <CalendarView
-              appointments={appointments}
-              selectedDate={selectedDate}
-              onDateSelect={setSelectedDate}
-              onViewChange={setViewMode}
-            />
-          ) : (
-            <ListView
-              selectedDate={selectedDate}
-              onDateChange={setSelectedDate}
-              filteredAppointments={filteredAppointments}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-            />
-          )}
-        </div>
-      </div>
-
-      {/* Botón flotante + */}
-      <button
-        onClick={handleNew}
-        className="fixed bottom-6 right-6 w-14 h-14 rounded-2xl bg-indigo-600 hover:bg-indigo-500 shadow-xl flex items-center justify-center text-white text-3xl font-black"
-        title="Nuevo turno"
-      >
-        +
-      </button>
-
-      {/* Barra inferior */}
-      <div className="fixed bottom-0 left-0 right-0 border-t border-slate-700 bg-slate-900/90 backdrop-blur">
-        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-2">
-          <div className="flex gap-2">
+        {/* Footer actions (COMO ANTES, no tapa nada) */}
+        <div className="mt-6 flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap">
             <button
-              onClick={handleBackup}
-              className="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-sm font-semibold"
+              onClick={handleExportJSON}
+              className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 px-3 py-2 rounded-lg text-sm font-semibold transition-colors"
             >
               Backup JSON
             </button>
             <button
-              onClick={handleExportExcel}
-              className="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-sm font-semibold"
+              onClick={handleExportCSV}
+              className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 px-3 py-2 rounded-lg text-sm font-semibold transition-colors"
             >
               Exportar Excel
             </button>
             <button
-              onClick={handleRestoreClick}
-              className="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-sm font-semibold"
+              onClick={handleImportClick}
+              className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 px-3 py-2 rounded-lg text-sm font-semibold transition-colors"
             >
               Restaurar
             </button>
@@ -297,14 +285,13 @@ const App: React.FC = () => {
 
           <button
             onClick={() => setShowManual(true)}
-            className="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-sm font-semibold"
+            className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 px-3 py-2 rounded-lg text-sm font-semibold transition-colors"
           >
             Manual
           </button>
         </div>
-      </div>
+      </main>
 
-      {/* Modal turno (usa tu componente real: isOpen) */}
       <AppointmentModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
@@ -313,7 +300,7 @@ const App: React.FC = () => {
         editingAppointment={editingAppt}
       />
 
-      {/* Manual modal */}
+      {/* Manual Modal */}
       {showManual && <UserManual onClose={() => setShowManual(false)} />}
     </div>
   );
