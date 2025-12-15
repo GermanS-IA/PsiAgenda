@@ -5,7 +5,7 @@ interface ListViewProps {
   selectedDate: string;
   onDateChange: (date: string) => void;
   filteredAppointments: Appointment[];
-  onEdit: (appt: Appointment) => void;
+  onEdit: (appt: Appointment, mode?: 'single' | 'series') => void; // mode opcional para no romper nada
   onDelete: (id: string, deleteSeries: boolean, parentId?: string) => void;
 }
 
@@ -17,10 +17,14 @@ const ListView: React.FC<ListViewProps> = ({
   onDelete,
 }) => {
   const [deleteModalAppt, setDeleteModalAppt] = useState<Appointment | null>(null);
+  const [editModalAppt, setEditModalAppt] = useState<Appointment | null>(null);
 
   const formatDateTitle = (dateStr: string) => {
+    // Manually parse YYYY-MM-DD to avoid timezone shifts
     const [year, month, day] = dateStr.split('-').map(Number);
     const date = new Date(year, month - 1, day);
+
+    // Explicitly request full Spanish format
     return date.toLocaleDateString('es-ES', {
       weekday: 'long',
       day: 'numeric',
@@ -40,11 +44,26 @@ const ListView: React.FC<ListViewProps> = ({
     }
   };
 
+  const handleEditClick = (appt: Appointment) => {
+    if (appt.RECURRENCIA && appt.PARENT_ID) {
+      setEditModalAppt(appt);
+    } else {
+      onEdit(appt, 'single');
+    }
+  };
+
+  const confirmEdit = (mode: 'single' | 'series') => {
+    if (editModalAppt) {
+      onEdit(editModalAppt, mode);
+      setEditModalAppt(null);
+    }
+  };
+
   return (
     <>
       <div className="space-y-4 sm:space-y-6 pb-24 relative">
-        {/* Encabezado con fecha y selector */}
-        <div className="flex justify-between items-center bg-white dark:bg-slate-800 p-4 sm:p-5 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700">
+        {/* Date Header */}
+        <div className="flex justify-between items-center bg-white dark:bg-slate-800 p-4 sm:p-5 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 transition-colors">
           <div>
             <h2 className="text-lg sm:text-xl font-bold text-slate-800 dark:text-white capitalize leading-tight">
               {formatDateTitle(selectedDate)}
@@ -55,6 +74,7 @@ const ListView: React.FC<ListViewProps> = ({
             </p>
           </div>
 
+          {/* Native Date Picker */}
           <div>
             <input
               type="date"
@@ -65,7 +85,7 @@ const ListView: React.FC<ListViewProps> = ({
           </div>
         </div>
 
-        {/* Lista o mensaje vacío */}
+        {/* Lista o vacío */}
         {filteredAppointments.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 border-dashed">
             <p className="text-slate-500 dark:text-slate-400 font-medium">
@@ -90,7 +110,7 @@ const ListView: React.FC<ListViewProps> = ({
                     </span>
                   </div>
 
-                  {/* Contenido turno */}
+                  {/* Contenido */}
                   <div className="flex-1 p-3 sm:p-4 min-w-0">
                     <div className="flex justify-between items-start">
                       <div className="min-w-0 pr-2">
@@ -122,19 +142,48 @@ const ListView: React.FC<ListViewProps> = ({
                         </div>
                       </div>
 
-                      {/* Botones acción */}
-                      <div className="flex gap-1 ml-1 shrink-0">
+                      {/* Acciones */}
+                      <div className="flex gap-0.5 sm:gap-1 ml-1 shrink-0">
                         <button
-                          onClick={() => onEdit(appt)}
-                          className="px-2 py-1 text-xs sm:text-sm rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                          onClick={() => handleEditClick(appt)}
+                          className="p-1.5 sm:p-2 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg transition-colors"
+                          title="Editar"
                         >
-                          Editar
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            strokeWidth={1.5}
+                            stroke="currentColor"
+                            className="w-5 h-5"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10"
+                            />
+                          </svg>
                         </button>
+
                         <button
                           onClick={() => handleTrashClick(appt)}
-                          className="px-2 py-1 text-xs sm:text-sm rounded-lg border border-red-300 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
+                          className="p-1.5 sm:p-2 text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
+                          title="Eliminar"
                         >
-                          Eliminar
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            strokeWidth={1.5}
+                            stroke="currentColor"
+                            className="w-5 h-5"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"
+                            />
+                          </svg>
                         </button>
                       </div>
                     </div>
@@ -145,14 +194,72 @@ const ListView: React.FC<ListViewProps> = ({
           </div>
         )}
 
-        {/* Modal de confirmación de borrado */}
+        {/* EDIT CONFIRMATION MODAL */}
+        {editModalAppt && (
+          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-[2px] z-50 flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl max-w-sm w-full p-6 animate-in fade-in zoom-in duration-200 border border-slate-100 dark:border-slate-700">
+              <div className="flex flex-col items-center text-center">
+                <div className="w-12 h-12 bg-indigo-100 dark:bg-indigo-900/30 rounded-full flex items-center justify-center mb-4 text-indigo-600 dark:text-indigo-400">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    strokeWidth={2}
+                    stroke="currentColor"
+                    className="w-6 h-6"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z"
+                    />
+                  </svg>
+                </div>
+
+                <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">
+                  ¿Editar turno?
+                </h3>
+
+                <p className="text-slate-500 dark:text-slate-400 text-sm mb-6">
+                  Estás por editar un turno recurrente. ¿Querés editar solo este turno o este y todos los siguientes?
+                </p>
+
+                <div className="w-full flex flex-col gap-2">
+                  <button
+                    onClick={() => confirmEdit('single')}
+                    className="w-full py-2.5 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 font-semibold rounded-lg hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors"
+                  >
+                    Editar solo este turno
+                  </button>
+
+                  <button
+                    onClick={() => confirmEdit('series')}
+                    className="w-full py-2.5 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 shadow-md hover:shadow-lg transition-all"
+                  >
+                    Editar este y todos los siguientes
+                  </button>
+
+                  <button
+                    onClick={() => setEditModalAppt(null)}
+                    className="mt-2 text-sm text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 underline"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* DELETE CONFIRMATION MODAL */}
         {deleteModalAppt && (
           <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-[2px] z-50 flex items-center justify-center p-4">
-            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl max-w-sm w-full p-6 border border-slate-100 dark:border-slate-700">
+            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl max-w-sm w-full p-6 animate-in fade-in zoom-in duration-200 border border-slate-100 dark:border-slate-700">
               <div className="flex flex-col items-center text-center">
                 <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">
                   ¿Eliminar turno?
                 </h3>
+
                 <p className="text-slate-500 dark:text-slate-400 text-sm mb-6">
                   Estás a punto de borrar el turno de{' '}
                   <span className="font-semibold text-slate-700 dark:text-slate-300">
@@ -178,7 +285,7 @@ const ListView: React.FC<ListViewProps> = ({
                   {deleteModalAppt.RECURRENCIA && (
                     <button
                       onClick={() => confirmDelete(true)}
-                      className="w-full py-2.5 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 transition-colors"
+                      className="w-full py-2.5 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 shadow-md hover:shadow-lg transition-all"
                     >
                       Borrar todos los turnos del paciente
                     </button>
