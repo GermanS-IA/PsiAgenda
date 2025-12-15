@@ -273,3 +273,19 @@ export const isBackupNeeded = (): boolean => {
 
     return diffDays > 7; // Alert if older than 7 days
 };
+
+export const updateRecurringSeries = (
+  parentId: string,
+  patch: Partial<Appointment>
+): Appointment[] => {
+  const appointments = getAppointments();
+
+  const updated = appointments.map(a =>
+    a.PARENT_ID === parentId
+      ? { ...a, ...patch }
+      : a
+  );
+
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+  return updated;
+};
