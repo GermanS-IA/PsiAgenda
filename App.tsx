@@ -26,14 +26,11 @@ const App: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingAppt, setEditingAppt] = useState<Appointment | null>(null);
 
-  // ✅ modo de edición (solo este / este + siguientes)
   const [editMode, setEditMode] = useState<'single' | 'series'>('single');
 
-  // Backup
   const [backupNeeded, setBackupNeeded] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Manual
   const [showManual, setShowManual] = useState(false);
 
   const checkBackupStatus = () => {
@@ -47,10 +44,10 @@ const App: React.FC = () => {
   };
 
   useEffect(() => {
-    // ✅ IMPORTANTE: primero intentamos cargar lo guardado (localStorage)
+    // 1) cargar desde localStorage
     const stored = loadData();
 
-    // Si no hay nada guardado, recién ahí generamos el seed inicial
+    // 2) si está vacío, recién ahí sembrar datos de prueba
     if (!stored || stored.length === 0) {
       const seeded = scheduleService.generateTestData();
       setAppointments(seeded);
@@ -67,7 +64,6 @@ const App: React.FC = () => {
     setFilteredAppointments(filtered);
   }, [appointments, selectedDate]);
 
-  // ✅ soporta edición de serie (este + siguientes)
   const handleSaveAppointment = (appt: Appointment) => {
     if (editingAppt) {
       if (editMode === 'series' && editingAppt.PARENT_ID) {
@@ -84,14 +80,12 @@ const App: React.FC = () => {
           }
         );
       } else {
-        // ✅ solo este
         scheduleService.updateAppointment({ ...editingAppt, ...appt });
       }
     } else {
       scheduleService.saveAppointment(appt);
     }
 
-    // reset
     setEditMode('single');
     setEditingAppt(null);
 
@@ -109,7 +103,6 @@ const App: React.FC = () => {
     checkBackupStatus();
   };
 
-  // ✅ recibe mode desde ListView: 'single' | 'series'
   const handleEdit = (appt: Appointment, mode: 'single' | 'series' = 'single') => {
     setEditingAppt(appt);
     setEditMode(mode);
@@ -149,7 +142,7 @@ const App: React.FC = () => {
         alert('Respaldo restaurado con éxito.');
         loadData();
         setBackupNeeded(false);
-      } catch (error) {
+      } catch {
         alert('Error al leer el archivo. Asegúrate de que sea un JSON válido generado por esta app.');
       }
     }
@@ -161,7 +154,6 @@ const App: React.FC = () => {
     <div className="min-h-screen bg-slate-900 flex flex-col font-sans text-slate-200">
       <GeminiQuery appointments={appointments} />
 
-      {/* Hidden File Input for Restore */}
       <input
         type="file"
         ref={fileInputRef}
@@ -170,45 +162,74 @@ const App: React.FC = () => {
         className="hidden"
       />
 
-      <main className="max-w-6xl w-full mx-auto p-4 sm:p-6 flex-1">
-        {/* Header */}
-        <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-              Mi Agenda
-            </h1>
-
-            {backupNeeded && (
-              <span className="text-xs font-bold px-2 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                Recomendado: hacer backup
-              </span>
-            )}
-          </div>
-
-          <div className="flex items-center gap-2 flex-wrap justify-end">
-            <button
-              onClick={handleImportClick}
-              className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 px-3 py-2 rounded-lg text-sm font-semibold transition-colors"
-            >
-              Restaurar
-            </button>
-            <button
-              onClick={handleExportCSV}
-              className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 px-3 py-2 rounded-lg text-sm font-semibold transition-colors"
-            >
-              Excel
-            </button>
+      <main className="flex-1 p-4 max-w-3xl mx-auto w-full">
+        {/* Banner backup */}
+        {backupNeeded && (
+          <div className="bg-amber-900/40 border border-amber-600/50 p-4 rounded-xl mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-amber-600/20 rounded-lg text-amber-500">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                </svg>
+              </div>
+              <div>
+                <p className="font-bold text-amber-200">Copia de Seguridad Necesaria</p>
+                <p className="text-amber-300/80 text-sm">Hace más de 7 días que no guardas tus datos.</p>
+              </div>
+            </div>
             <button
               onClick={handleExportJSON}
-              className="bg-emerald-600/90 hover:bg-emerald-600 border border-emerald-500/40 text-white px-3 py-2 rounded-lg text-sm font-semibold transition-colors"
+              className="bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold px-4 py-2 rounded-lg transition-colors shadow-md"
             >
-              Respaldar
+              Respaldar Ahora
             </button>
           </div>
-        </header>
+        )}
+
+        {/* Header (como antes, con botones arriba) */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
+          <div className="flex items-center gap-3">
+            <h1 className="text-xl font-bold text-slate-200">Mi Agenda</h1>
+            <button
+              onClick={() => setShowManual(true)}
+              className="bg-indigo-600 hover:bg-indigo-500 text-white p-1.5 rounded-full shadow-sm transition-all"
+              title="Ver Manual de Usuario"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
+              </svg>
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2 self-end sm:self-auto flex-wrap">
+            <button
+              onClick={handleImportClick}
+              className="flex items-center gap-2 text-sm text-slate-400 hover:text-indigo-400 transition-colors bg-slate-800 px-3 py-1.5 rounded-lg shadow-sm border border-slate-700"
+              title="Cargar un archivo de respaldo"
+            >
+              <span className="hidden sm:inline">Restaurar</span>
+            </button>
+
+            <button
+              onClick={handleExportCSV}
+              className="flex items-center gap-2 text-sm text-slate-400 hover:text-green-400 transition-colors bg-slate-800 px-3 py-1.5 rounded-lg shadow-sm border border-slate-700"
+              title="Exportar a Excel"
+            >
+              <span className="hidden sm:inline">Excel</span>
+            </button>
+
+            <button
+              onClick={handleExportJSON}
+              className="flex items-center gap-2 text-sm font-semibold text-emerald-400 hover:text-emerald-300 transition-colors bg-slate-800 px-3 py-1.5 rounded-lg shadow-sm border border-slate-700 hover:border-emerald-500/50"
+              title="Crear copia de seguridad"
+            >
+              <span>Respaldar</span>
+            </button>
+          </div>
+        </div>
 
         {/* Tabs */}
-        <div className="bg-slate-800/40 border border-slate-700 rounded-xl p-2 flex gap-2 mb-6">
+        <div className="bg-slate-800 p-1.5 rounded-xl shadow-sm border border-slate-700 mb-6 flex gap-2">
           <button
             onClick={() => setViewMode(ViewMode.LIST)}
             className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-semibold rounded-lg transition-all duration-200 ${
@@ -217,13 +238,6 @@ const App: React.FC = () => {
                 : 'text-slate-400 hover:bg-slate-700 hover:text-slate-200'
             }`}
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-              <path
-                fillRule="evenodd"
-                d="M3 4.5A1.5 1.5 0 014.5 3h11A1.5 1.5 0 0117 4.5v11a1.5 1.5 0 01-1.5 1.5h-11A1.5 1.5 0 013 15.5v-11zM6 6a1 1 0 000 2h8a1 1 0 100-2H6zm0 4a1 1 0 000 2h8a1 1 0 100-2H6zm0 4a1 1 0 000 2h5a1 1 0 100-2H6z"
-                clipRule="evenodd"
-              />
-            </svg>
             Agenda Diaria
           </button>
 
@@ -235,18 +249,10 @@ const App: React.FC = () => {
                 : 'text-slate-400 hover:bg-slate-700 hover:text-slate-200'
             }`}
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-              <path
-                fillRule="evenodd"
-                d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z"
-                clipRule="evenodd"
-              />
-            </svg>
             Calendario Mensual
           </button>
         </div>
 
-        {/* Views */}
         {viewMode === ViewMode.LIST ? (
           <ListView
             selectedDate={selectedDate}
@@ -263,48 +269,17 @@ const App: React.FC = () => {
             onViewChange={setViewMode}
           />
         )}
-
-        {/* Footer actions */}
-        <div className="mt-6 flex items-center justify-between gap-2 flex-wrap">
-          <div className="flex items-center gap-2 flex-wrap">
-            <button
-              onClick={handleExportJSON}
-              className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 px-3 py-2 rounded-lg text-sm font-semibold transition-colors"
-            >
-              Backup JSON
-            </button>
-            <button
-              onClick={handleExportCSV}
-              className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 px-3 py-2 rounded-lg text-sm font-semibold transition-colors"
-            >
-              Exportar Excel
-            </button>
-            <button
-              onClick={handleImportClick}
-              className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 px-3 py-2 rounded-lg text-sm font-semibold transition-colors"
-            >
-              Restaurar
-            </button>
-          </div>
-
-          <button
-            onClick={() => setShowManual(true)}
-            className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 px-3 py-2 rounded-lg text-sm font-semibold transition-colors"
-          >
-            Manual
-          </button>
-        </div>
       </main>
 
-      {/* Floating Action Button */}
+      {/* Botón + flotante (no tapado) */}
       <button
         onClick={openNewModal}
         className="fixed bottom-6 right-6 bg-indigo-500 hover:bg-indigo-600 text-white rounded-2xl p-4 shadow-xl transition-all hover:scale-105 active:scale-95 focus:ring-4 focus:ring-indigo-900 z-40 flex items-center gap-2 group"
+        title="Nuevo turno"
       >
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-6 h-6">
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
         </svg>
-        <span className="font-semibold pr-1 hidden group-hover:inline-block transition-all duration-300">Nuevo</span>
       </button>
 
       <AppointmentModal
