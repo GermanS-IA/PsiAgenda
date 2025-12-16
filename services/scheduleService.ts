@@ -81,28 +81,33 @@ export const updateRecurringSeries = (
 ): Appointment[] => {
   const currentAppointments = getAppointments();
 
-  // ISO comparable (YYYY-MM-DDTHH:MM)
-  const cutoffKey = `${fromDate}T${fromTime}`;
+  const updated = currentAppointments.map((a) => {
+    // 👉 incluir el turno base y todos los hijos
+    const isSameSeries =
+      a.ID_TURNO === parentId || a.PARENT_ID === parentId;
 
-  const updated = currentAppointments.map(a => {
-    if (a.PARENT_ID !== parentId) return a;
+    if (!isSameSeries) return a;
 
-    const apptKey = `${a.FECHA_INICIO}T${a.HORA_INICIO}`;
-    // Solo este y los siguientes (no toca los anteriores)
-    if (apptKey < cutoffKey) return a;
+    // 👉 editar este y los siguientes
+    const isAfterDate = a.FECHA_INICIO > fromDate;
+    const isSameDateAndAfterTime =
+      a.FECHA_INICIO === fromDate &&
+      a.HORA_INICIO >= fromTime;
 
-    // Aplicar cambios, pero no tocar IDs / parentId
-    return {
-      ...a,
-      ...patch,
-      ID_TURNO: a.ID_TURNO,
-      PARENT_ID: a.PARENT_ID,
-    };
+    if (isAfterDate || isSameDateAndAfterTime) {
+      return {
+        ...a,
+        ...patch,
+      };
+    }
+
+    return a;
   });
 
   localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
   return updated;
 };
+
 
 export const deleteAppointment = (id: string): Appointment[] => {
   const currentAppointments = getAppointments();
