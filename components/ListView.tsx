@@ -5,19 +5,13 @@ interface ListViewProps {
   selectedDate: string;
   onDateChange: (date: string) => void;
   filteredAppointments: Appointment[];
-  onEdit: (appt: Appointment, mode?: 'single' | 'series') => void; // ✅ ahora recibe mode
+  onEdit: (appt: Appointment, mode?: 'single' | 'series') => void;
   onDelete: (id: string, deleteSeries: boolean, parentId?: string) => void;
 }
 
-const ListView: React.FC<ListViewProps> = ({
-  selectedDate,
-  onDateChange,
-  filteredAppointments,
-  onEdit,
-  onDelete
-}) => {
+const ListView: React.FC<ListViewProps> = ({ selectedDate, onDateChange, filteredAppointments, onEdit, onDelete }) => {
   const [deleteModalAppt, setDeleteModalAppt] = useState<Appointment | null>(null);
-  const [editModalAppt, setEditModalAppt] = useState<Appointment | null>(null); // ✅ NUEVO
+  const [editChoiceAppt, setEditChoiceAppt] = useState<Appointment | null>(null);
 
   const formatDateTitle = (dateStr: string) => {
     const [year, month, day] = dateStr.split('-').map(Number);
@@ -34,21 +28,6 @@ const ListView: React.FC<ListViewProps> = ({
       onDelete(deleteModalAppt.ID_TURNO, deleteSeries, deleteModalAppt.PARENT_ID);
       setDeleteModalAppt(null);
     }
-  };
-
-  // ✅ CLAVE: Editar ahora pregunta si es recurrente
-  const handleEditClick = (appt: Appointment) => {
-    if (appt.RECURRENCIA) {
-      setEditModalAppt(appt);
-      return;
-    }
-    onEdit(appt, 'single');
-  };
-
-  const confirmEdit = (mode: 'single' | 'series') => {
-    if (!editModalAppt) return;
-    onEdit(editModalAppt, mode);
-    setEditModalAppt(null);
   };
 
   return (
@@ -112,16 +91,16 @@ const ListView: React.FC<ListViewProps> = ({
                         <div className="mt-1.5 space-y-1">
                           {appt.TELEFONO && (
                             <div className="flex items-center gap-1.5 text-xs sm:text-sm text-slate-600 dark:text-slate-400 truncate">
-                              <span className="truncate">{appt.TELEFONO}</span>
+                              <span className="truncate">Tel: {appt.TELEFONO}</span>
                             </div>
                           )}
                           {appt.EMAIL && (
                             <div className="flex items-center gap-1.5 text-xs sm:text-sm text-slate-600 dark:text-slate-400 truncate">
-                              <span className="truncate">{appt.EMAIL}</span>
+                              <span className="truncate">Email: {appt.EMAIL}</span>
                             </div>
                           )}
                           {appt.NOTAS && (
-                            <div className="mt-2 bg-yellow-50 dark:bg-yellow-900/20 p-1.5 sm:p-2 rounded border border-yellow-100 dark:border-yellow-900/30 text-xs sm:text-sm text-slate-600 dark:text-slate-300 flex gap-1.5 items-start">
+                            <div className="mt-2 bg-yellow-50 dark:bg-yellow-900/20 p-1.5 sm:p-2 rounded border border-yellow-100 dark:border-yellow-900/30 text-xs sm:text-sm text-slate-600 dark:text-slate-300">
                               <p className="italic line-clamp-2">{appt.NOTAS}</p>
                             </div>
                           )}
@@ -131,7 +110,10 @@ const ListView: React.FC<ListViewProps> = ({
                       {/* Actions */}
                       <div className="flex gap-0.5 sm:gap-1 ml-1 shrink-0">
                         <button
-                          onClick={() => handleEditClick(appt)}
+                          onClick={() => {
+                            if (appt.RECURRENCIA) setEditChoiceAppt(appt);
+                            else onEdit(appt, 'single');
+                          }}
                           className="p-1.5 sm:p-2 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg transition-colors"
                           title="Editar"
                         >
@@ -158,41 +140,45 @@ const ListView: React.FC<ListViewProps> = ({
           </div>
         )}
 
-        {/* ✅ EDIT CONFIRMATION MODAL */}
-        {editModalAppt && (
+        {/* EDIT CHOICE MODAL */}
+        {editChoiceAppt && (
           <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-[2px] z-50 flex items-center justify-center p-4">
             <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl max-w-sm w-full p-6 animate-in fade-in zoom-in duration-200 border border-slate-100 dark:border-slate-700">
               <div className="flex flex-col items-center text-center">
                 <div className="w-12 h-12 bg-indigo-100 dark:bg-indigo-900/30 rounded-full flex items-center justify-center mb-4 text-indigo-600 dark:text-indigo-400">
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.688-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 7.125L16.862 4.487" />
                   </svg>
                 </div>
                 <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">¿Editar turno?</h3>
                 <p className="text-slate-500 dark:text-slate-400 text-sm mb-6">
-                  Estás por editar un turno recurrente de{' '}
-                  <span className="font-semibold text-slate-700 dark:text-slate-300">{editModalAppt.PACIENTE}</span>.
-                  <br />
-                  ¿Querés editar solo este turno o este y todos los siguientes?
+                  Estás por editar un turno recurrente. ¿Querés editar solo este turno o este y todos los siguientes?
                 </p>
 
                 <div className="w-full flex flex-col gap-2">
                   <button
-                    onClick={() => confirmEdit('single')}
+                    onClick={() => {
+                      onEdit(editChoiceAppt, 'single');
+                      setEditChoiceAppt(null);
+                    }}
                     className="w-full py-2.5 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 font-semibold rounded-lg hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors"
                   >
                     Editar solo este turno
                   </button>
 
                   <button
-                    onClick={() => confirmEdit('series')}
+                    onClick={() => {
+                      onEdit(editChoiceAppt, 'series');
+                      setEditChoiceAppt(null);
+                    }}
                     className="w-full py-2.5 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 shadow-md hover:shadow-lg transition-all"
                   >
                     Editar este y todos los siguientes
                   </button>
 
                   <button
-                    onClick={() => setEditModalAppt(null)}
+                    onClick={() => setEditChoiceAppt(null)}
                     className="mt-2 text-sm text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 underline"
                   >
                     Cancelar
@@ -210,7 +196,7 @@ const ListView: React.FC<ListViewProps> = ({
               <div className="flex flex-col items-center text-center">
                 <div className="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mb-4 text-red-600 dark:text-red-400">
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
                   </svg>
                 </div>
                 <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">¿Eliminar turno?</h3>
