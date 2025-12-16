@@ -84,9 +84,9 @@ export const updateRecurringSeries = (
     if (a.PARENT_ID !== parentId) return a;
 
     const apptKey = `${a.FECHA_INICIO}T${a.HORA_INICIO}`;
-    const isAfter = apptKey > cutoffKey;
+    const isAfterOrEqual = apptKey >= cutoffKey; // incluye el turno actual
 
-    if (!isAfter) return a;
+    if (!isAfterOrEqual) return a;
 
     const safePatch: Partial<Appointment> = { ...patch };
     delete (safePatch as any).ID_TURNO;
